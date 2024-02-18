@@ -1,7 +1,7 @@
 # School managment app
 ## Helps in creating settlements for schools and parents
 
-In order to run app fast, you need docker installed on your machine. In project directory run:
+In order to run app fast, you need to have docker installed on your machine. In project directory run following command:
 
 ```sh
 docker compose up
