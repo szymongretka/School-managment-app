@@ -20,13 +20,12 @@ import pl.school.management.service.impl.SettlementServiceImpl;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(SpringExtension.class)
@@ -44,7 +43,69 @@ class SettlementServiceTest {
 
     @Test
     void getSettlementForSchool() {
+        //given
+        long schoolId = 2L;
+        long parentId = 6L;
+        int month = 6;
+        String lastName = "Nazwisko";
+        String childName1 = "FirstChild";
+        String childName2 = "Second";
+        Long childId1 = 1L;
+        Long childId2 = 2L;
 
+        BigDecimal schoolHourPrice = BigDecimal.valueOf(20.0);
+
+        School school = initSchool(schoolHourPrice);
+        Parent parent = initParent(lastName);
+        Child child1 = initChild(childId1, school, parent, childName1);
+        Child child2 = initChild(childId2, school, parent, childName2);
+
+        Attendance attendance1 = new Attendance();
+        attendance1.setChild(child1);
+        attendance1.setEntryDate(LocalDateTime.of(2024, month, 2, 7, 30, 0));
+        attendance1.setExitDate(LocalDateTime.of(2024, month, 2, 11, 30, 0));
+
+        Attendance attendance2 = new Attendance();
+        attendance2.setChild(child1);
+        attendance2.setEntryDate(LocalDateTime.of(2024, month, 3, 6, 30, 0));
+        attendance2.setExitDate(LocalDateTime.of(2024, month, 3, 15, 30, 0));
+
+        Attendance attendance3 = new Attendance();
+        attendance3.setChild(child2);
+        attendance3.setEntryDate(LocalDateTime.of(2024, month, 2, 4, 30, 0));
+        attendance3.setExitDate(LocalDateTime.of(2024, month, 2, 18, 30, 0));
+
+        List<Attendance> attendances = List.of(attendance1, attendance2, attendance3);
+
+        Mockito.when(schoolRepository.parentIdsForSchool(schoolId))
+                .thenReturn(List.of(parentId));
+        Mockito.when(attendanceRepository
+                        .findAllByChildParentIdAndEntryDateGreaterThanAndExitDateLessThan(any(), any(), any()))
+                .thenReturn(attendances);
+        Mockito.when(parentRepository.findById(parentId))
+                .thenReturn(Optional.of(parent));
+        Mockito.when(schoolRepository.findSchoolHoursPrice(schoolId))
+                .thenReturn(schoolHourPrice);
+
+
+        //when
+        List<SettlementResponse> settlementResponses = settlementService.getSettlementForSchool(schoolId, month);
+
+        //then
+        ChildFee childFee1 = new ChildFee(childId1, childName1, 100.0f, 13);
+        ChildFee childFee2 = new ChildFee(childId2, childName2, 200.0f, 14);
+        List<ChildFee> childFees = List.of(childFee1, childFee2);
+
+        SettlementResponse expectedResponse = new SettlementResponse();
+        expectedResponse.setParentLastName(lastName);
+        expectedResponse.setParentFirstName("Rodzic");
+        expectedResponse.setTotalFees(300.0f);
+        expectedResponse.setFeeList(childFees);
+        assertThat(settlementResponses)
+                .hasSize(1);
+        assertThat(settlementResponses.getFirst())
+                .usingRecursiveComparison()
+                .isEqualTo(expectedResponse);
     }
 
     @Test
@@ -110,8 +171,8 @@ class SettlementServiceTest {
         List<Attendance> attendances = List.of(attendance1, attendance2, attendance3);
 
         Mockito.when(attendanceRepository
-                .findAllByChildParentIdAndEntryDateGreaterThanAndExitDateLessThan(any(), any(), any()))
-                        .thenReturn(attendances);
+                        .findAllByChildParentIdAndEntryDateGreaterThanAndExitDateLessThan(any(), any(), any()))
+                .thenReturn(attendances);
         Mockito.when(parentRepository.findById(parentId))
                 .thenReturn(Optional.of(parent));
         Mockito.when(schoolRepository.findSchoolHoursPrice(schoolId))

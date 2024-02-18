@@ -18,6 +18,11 @@ import java.time.Month;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+/**
+ * If we had association between parent -> children -> attendances it would be much easier to retrieve
+ * information about settlements. In that case it would be simple projections and 3 joins to retrieve that data.
+ * Due to limitations in domain model, I had to first fetch child attendances, create map with hours and the return response.
+ */
 @Service
 public class SettlementServiceImpl implements SettlementService {
 
@@ -35,7 +40,10 @@ public class SettlementServiceImpl implements SettlementService {
 
     @Override
     public List<SettlementResponse> getSettlementForSchool(Long schoolId, int month) {
-        return null;
+        List<Long> parentIds = schoolRepository.parentIdsForSchool(schoolId);
+        List<SettlementResponse> responses = new ArrayList<>(parentIds.size());
+        parentIds.forEach(parentId -> responses.add(getSettlementForParent(schoolId, parentId, month)));
+        return responses;
     }
 
     @Override
@@ -52,6 +60,23 @@ public class SettlementServiceImpl implements SettlementService {
             return new SettlementResponse();
         }
 
+        Map<Long, ChildFee> childFeeMap = computeChildFeeMap(childrenAttendances, schoolHourPrice);
+
+        float totalFee = (float) childFeeMap.values()
+                .stream()
+                .mapToDouble(ChildFee::getTotalAmount)
+                .sum();
+
+        SettlementResponse settlementResponse = new SettlementResponse();
+        settlementResponse.setParentFirstName(parent.getFirstName());
+        settlementResponse.setParentLastName(parent.getLastName());
+        settlementResponse.setTotalFees(totalFee);
+        settlementResponse.setFeeList(childFeeMap.values().stream().toList());
+
+        return settlementResponse;
+    }
+
+    private Map<Long, ChildFee> computeChildFeeMap(List<Attendance> childrenAttendances, BigDecimal schoolHourPrice) {
         Map<Long, ChildFee> childFeeMap = new HashMap<>();
         childrenAttendances.forEach(attendance -> {
             int paidHours = PaidHoursCalculator.calculate(attendance.getEntryDate(), attendance.getExitDate());
@@ -69,19 +94,7 @@ public class SettlementServiceImpl implements SettlementService {
                 return val;
             });
         });
-
-        float totalFee = (float) childFeeMap.values()
-                .stream()
-                .mapToDouble(ChildFee::getTotalAmount)
-                .sum();
-
-        SettlementResponse settlementResponse = new SettlementResponse();
-        settlementResponse.setParentFirstName(parent.getFirstName());
-        settlementResponse.setParentLastName(parent.getLastName());
-        settlementResponse.setTotalFees(totalFee);
-        settlementResponse.setFeeList(childFeeMap.values().stream().toList());
-
-        return settlementResponse;
+        return childFeeMap;
     }
 
 }
