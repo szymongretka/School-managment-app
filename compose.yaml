@@ -1,0 +1,54 @@
+services:
+  postgres-db:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: school-management
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: user
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgres
+
+  flyway:
+    image: flyway/flyway:latest
+    depends_on:
+      - postgres-db
+    command: -url=jdbc:postgresql://postgres-db:5432/school-management -schemas=public -user=user -password=password migrate
+    volumes:
+      - ./src/main/resources/db/migration:/flyway/sql
+    environment:
+      FLYWAY_USER: user
+      FLYWAY_PASSWORD: password
+      FLYWAY_URL: jdbc:postgresql://postgres-db:5432/school-management
+
+  redis:
+    image: redis:latest
+    ports:
+      - 6379:6379
+
+  school-management-app:
+    image: school-management-app:latest
+    depends_on:
+      - postgres-db
+      - redis
+      - flyway
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 8080:8080
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/school-management
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATASOURCE_DRIVER-class-name: org.postgresql.Driver
+
+volumes:
+  postgres-data:
+#networks:
+#  springboot-postgres-network:
+#    name: springboot-postgres-network
+#    driver: bridge
+
+
